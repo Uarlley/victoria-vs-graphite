@@ -1,0 +1,79 @@
+services:
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoriametrics
+    ports:
+      - "8428:8428"
+      - "2003:2003"
+      - "2003:2003/udp"
+    command:
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:8428"
+      - "--graphiteListenAddr=:2003"
+      - "--retentionPeriod=30d"
+    volumes:
+      - victoriametrics_data:/storage
+    networks:
+      - monitoring_net
+    restart: unless-stopped
+
+ # Graphite (Carbon + Graphite-Web)
+  graphite:
+    image: graphiteapp/graphite-statsd:latest
+    container_name: graphite
+    ports:
+      - "8080:80"    # Graphite-Web UI
+      - "2004:2004"  # Carbon receiver (pickle)
+      - "2005:2003"
+      - "8125:8125/udp"  # StatsD
+      - "8126:8126"  # StatsD admin
+    environment:
+      - GRAPHITE_TIME_ZONE=UTC
+    volumes:
+      - graphite_data:/opt/graphite/storage
+      - graphite_conf:/opt/graphite/conf
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -an | grep -q 2003"]
+      interval: 10s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+    networks:
+      - monitoring_net
+    restart: unless-stopped
+
+  # Carbon API - API moderna para Graphite
+  carbonapi:
+    image: gographite/carbonapi:latest
+    container_name: carbonapi
+    ports:
+        - "8081:8081"
+    volumes:
+        - ./configs/carbonapi.yml:/etc/carbonapi.yml  # Monta o arquivo de configuração
+    environment:
+        - GRAPHITE_PREFIX=graphite
+        - GRAPHITE_SERVER=graphite:80
+    depends_on:
+        graphite:
+            condition: service_healthy
+    networks:
+        - monitoring_net
+    restart: unless-stopped
+    healthcheck:
+        test: ["CMD", "wget", "--spider", "http://localhost:8081"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+        start_period: 30s
+
+volumes:
+  victoriametrics_data:
+    driver: local
+  graphite_data:
+    driver: local
+  graphite_conf:
+    driver: local
+
+networks:
+  monitoring_net:
+    driver: bridge

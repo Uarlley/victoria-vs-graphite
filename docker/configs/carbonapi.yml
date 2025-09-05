@@ -1,0 +1,19 @@
+# ./configs/carbonapi.yml
+upstreams:
+    backends:
+        - "http://graphite:80"
+    concurrencyLimit: 10
+    timeouts:
+        find: "2s"
+        render: "10s"
+        connect: "200ms"
+
+cache:
+    type: "mem"
+    size_mb: 0
+
+timeouts:
+    global: "1m"
+    afterStarted: "30s"
+
+listen: ":8081"
